@@ -23,7 +23,7 @@ Prerequisites:
   - Install the SharePoint Online Management Shell -- https://www.microsoft.com/en-us/download/details.aspx?id=35588
   - Install the SharePoint Online Client Components SDK -- https://www.microsoft.com/en-us/download/details.aspx?id=42038
 
-How to run this script:
+#How to run this script:
 ~~~~~~~~~~~~~~~~~~~~~~~
 
     1. Open PowerShell or the SharePoint Online Management Shell (run as Administrator)
