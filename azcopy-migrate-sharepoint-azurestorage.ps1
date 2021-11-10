@@ -23,7 +23,7 @@ Prerequisites:
   - Install the SharePoint Online Management Shell -- https://www.microsoft.com/en-us/download/details.aspx?id=35588
   - Install the SharePoint Online Client Components SDK -- https://www.microsoft.com/en-us/download/details.aspx?id=42038
 
-#How to run this script:
+How to run this script:
 ~~~~~~~~~~~~~~~~~~~~~~~
 
     1. Open PowerShell or the SharePoint Online Management Shell (run as Administrator)
@@ -32,7 +32,7 @@ Prerequisites:
 
           
      Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
-    .\azcopy-sharepoint-azurestorage.ps1  -spoHostName https://sourcetenant.sharepoint.com -azStorageAccountKey XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX -azStorageAccountName ascensionspazure -FilesCollectionOutput "C:\sourcetenantinventory\sourcefilesdetails.csv -localBaseFolderName C:\Users\username\spazuremigration
+    .\azcopy-sharepoint-azurestorage.ps1  -SPHostName https://sourcetenant.sharepoint.com -azStorageAccountKey XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX -azStorageAccountName spazure -FilesCollectionOutput "C:\sourcetenantinventory\sourcefilesdetails.csv -localRootFolder C:\Users\username\spazuremigration
 
        
 #>
@@ -41,11 +41,11 @@ Prerequisites:
 
 param(
         [Parameter()]        
-	[string]$spoHostName,
+	[string]$SPHostName,
 	[string]$azStorageAccountKey,		
         [string]$azStorageAccountName,            
         [string]$FilesCollectionOutput,
-        [string]$localBaseFolderName
+        [string]$localRootFolder
         )
 
 
@@ -57,48 +57,47 @@ Function Get-SiteInventory
 #importing CSV file and crawling each row for site and document library details.
 
 $localFileDownloadFolderPath = $PSScriptRoot
-$spolSiteUrl = $spoHostName + $spolSiteRelativeUrl
+$SPSiteUrl = $SPHostName + $SPSiteRelativeUrl
 $CSVFile = Import-CSV $FilesCollectionOutput
 ForEach($Row in $CSVFile)
 {
-	$spolLibItems = m365 spo listitem list --webUrl $Row.SiteUrl --title $Row.LibraryName --fields 'FileRef,FileLeafRef' --filter "FSObjType eq 0" -o json | ConvertFrom-Json
+	$SPLibItems = m365 spo listitem list --webUrl $Row.SiteUrl --title $Row.LibraryName --fields 'FileRef,FileLeafRef' --filter "FSObjType eq 0" -o json | ConvertFrom-Json
     Write-Host '-----------------------process started-----------------------------------' -ForegroundColor Green
-	 ForEach ($spolLibItem in $spolLibItems) {
+	 ForEach ($SPLibItems in $SPLibItems) {
 
-        $spolLibFileRelativeUrl = $spolLibItem.FileRef
+        $SPLibFileRelativeUrl = $SPLibItem.FileRef
 		
-        $spolFileName = $spolLibItem.FileLeafRef
-		$spolLibFolderRelativeUrl = $spolLibFileRelativeUrl.Substring(0, $spolLibFileRelativeUrl.lastIndexOf('/'))
-        $localDownloadFolderPath = Join-Path  $localBaseFolderName $spolLibFolderRelativeUrl
-		Write-Host $spolLibFileRelativeUrl $spolFileName -ForegroundColor Red
-        If (!(test-path $localDownloadFolderPath)) {
-            $message = "Target local folder $localDownloadFolderPath not exist"
-            Write-Host $message -ForegroundColor Yellow
+        $SPFileName = $SPLibItem.FileLeafRef
+		$SPLibFolderRelativeUrl = $SPLibFileRelativeUrl.Substring(0, $SPLibFileRelativeUrl.lastIndexOf('/'))
+        $localSPDownloadFolderPath = Join-Path  $localRootFolder $SPLibFolderRelativeUrl
+		Write-Host $SPLibFileRelativeUrl $SPFileName -ForegroundColor Red
+        If (!(test-path $localSPDownloadFolderPath)) {
+            $displaymessage = "Destination local folder $localSPDownloadFolderPath not exist"
+            Write-Host $displaymessage -ForegroundColor Yellow
 
-            New-Item -ItemType Directory -Force -Path $localDownloadFolderPath | Out-Null
+            New-Item -ItemType Directory -Force -Path $localSPDownloadFolderPath | Out-Null
 
-            $message = "Created target local folder at $localDownloadFolderPath"
-            Write-Host $message -ForegroundColor Green
+            $displaymessage = "Created Destination local folder at $localSPDownloadFolderPath"
+            Write-Host $displaymessage -ForegroundColor Green
         }
         else {
-            $message = "Target local folder exist at $localDownloadFolderPath"
-            Write-Host $message -ForegroundColor Blue
+            $displaymessage = "Destination local folder already exists at $localSPDownloadFolderPath"
+            Write-Host $displaymessage -ForegroundColor Blue
         }
 
-        $localFilePath = Join-Path $localDownloadFolderPath $spolFileName
-Write-Host $localFilePath -ForegroundColor Green
-        $message = "Processing SharePoint file $spolFileName"
-        Write-Host $message -ForegroundColor Green
+        $localFilePath = Join-Path $localSPDownloadFolderPath $SPFileName
+        Write-Host $localFilePath -ForegroundColor Green
+        $displaymessage = "Reading and writing SP file $SPFileName"
+        Write-Host $displaymessage -ForegroundColor Green
 
-        m365 spo file get --webUrl $Row.SiteUrl --url $spolLibFileRelativeUrl --asFile --path $localFilePath
+        m365 spo file get --webUrl $Row.SiteUrl --url $SPLibFileRelativeUrl --asFile --path $localFilePath
 
-        $message = "Downloaded SharePoint file at $localFilePath"
-        Write-Host $message -ForegroundColor Green
+        $displaymessage = "Downloaded SP file at $localFilePath"
+        Write-Host $displaymessage -ForegroundColor Green
     }
 	
 	
-	#Write-Host $localBaseFolderName -ForegroundColor Green
-   # az storage blob sync --account-key $azStorageAccountKey --account-name $azStorageAccountName -c $azStorageContainerName -s $localBaseFolderName --only-show-errors | Out-Null
+	
 
 }
 Write-Host "############################################################"
@@ -119,8 +118,8 @@ ForEach($Row in $CSVFile)
 
 Get-ChildItem -Path $folderPath |
     Foreach-Object {
-    $message = "Folder-----------------------"
-    $foldersitePath= Join-Path -Path $localBaseFolderName -ChildPath "sites/"
+    $displaymessage = "Folder-----------------------"
+    $foldersitePath= Join-Path -Path $localRootFolder -ChildPath "sites/"
     $foldersitePath =$foldersitePath+$_.Name
         $foldername= $_.Name 
         Write-Host $message  $foldername -ForegroundColor Red  
@@ -144,13 +143,15 @@ Write-Host '--------------------------------------------------' -ForegroundColor
 Write-Host 'Waiting for 10 seconds to complete the process' -ForegroundColor RED
 Start-Sleep -Seconds 10
 
-
+#deleting local downloaded folders and files from the ROOT folder
 Remove-Item $folderPath -Force -Recurse
 Write-Host $folderPath -ForegroundColor Green
 Write-Host 'Process Completed' -ForegroundColor Green
 
 }
 
+####################### Below functions get called to start the process####################
+#######################################################################################
 #function to get the whole inventory
 Get-SiteInventory
 #function to sync the whole inventory
